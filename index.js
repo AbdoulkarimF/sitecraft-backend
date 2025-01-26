@@ -7,19 +7,35 @@ const app = express();
 
 // Basic middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true
+}));
 
-// Health check route
-app.get('/', (req, res) => {
+// Debug route
+app.get('/', async (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  
   res.json({ 
     status: 'ok',
-    message: 'Server is running',
-    env: {
+    timestamp: new Date().toISOString(),
+    database: {
+      status: dbStatus,
+      uri: process.env.MONGODB_URI ? 'URI is set' : 'URI is missing',
+      connectionState: mongoose.connection.readyState
+    },
+    environment: {
       nodeEnv: process.env.NODE_ENV,
-      mongoDbUri: process.env.MONGODB_URI ? 'Set' : 'Not set',
-      corsOrigin: process.env.CORS_ORIGIN
+      corsOrigin: process.env.CORS_ORIGIN || 'not set',
+      platform: process.platform,
+      nodeVersion: process.version
     }
   });
+});
+
+// Test route
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API test route is working!' });
 });
 
 // MongoDB connection
@@ -28,11 +44,17 @@ const connectDB = async () => {
     if (!process.env.MONGODB_URI) {
       throw new Error('MONGODB_URI is not defined');
     }
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('MongoDB Connected');
+    
+    const options = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    };
+    
+    await mongoose.connect(process.env.MONGODB_URI, options);
+    console.log('MongoDB Connected Successfully');
     return true;
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('MongoDB connection error:', error.message);
     return false;
   }
 };
@@ -46,10 +68,11 @@ connectDB().then(connected => {
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error('Error:', err.message);
   res.status(500).json({
     error: true,
-    message: err.message
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 
