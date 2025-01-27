@@ -1,80 +1,52 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+require('dotenv').config();
 
 const app = express();
 
-// Basic middleware
+// Middleware
+app.use(cors());
 app.use(express.json());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true
-}));
 
-// Debug route
-app.get('/', async (req, res) => {
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  
-  res.json({ 
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    database: {
-      status: dbStatus,
-      uri: process.env.MONGODB_URI ? 'URI is set' : 'URI is missing',
-      connectionState: mongoose.connection.readyState
-    },
-    environment: {
-      nodeEnv: process.env.NODE_ENV,
-      corsOrigin: process.env.CORS_ORIGIN || 'not set',
-      platform: process.platform,
-      nodeVersion: process.version
-    }
+// Routes
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Welcome to SiteCraft API',
+    status: 'online',
+    time: new Date().toISOString()
   });
 });
 
-// Test route
 app.get('/api/test', (req, res) => {
-  res.json({ message: 'API test route is working!' });
+  res.json({
+    message: 'API test endpoint is working!',
+    env: process.env.NODE_ENV,
+    time: new Date().toISOString()
+  });
 });
 
 // MongoDB connection
-const connectDB = async () => {
-  try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI is not defined');
-    }
-    
-    const options = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    };
-    
-    await mongoose.connect(process.env.MONGODB_URI, options);
-    console.log('MongoDB Connected Successfully');
-    return true;
-  } catch (error) {
-    console.error('MongoDB connection error:', error.message);
-    return false;
-  }
-};
-
-// Initialize MongoDB connection
-connectDB().then(connected => {
-  if (!connected) {
-    console.log('Failed to connect to MongoDB');
-  }
-});
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB Connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
+  console.error(err.stack);
   res.status(500).json({
     error: true,
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
   });
 });
 
-// Export the Express API
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: true,
+    message: 'Route not found'
+  });
+});
+
+// Export the Express app
 module.exports = app;
